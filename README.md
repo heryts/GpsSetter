@@ -7,25 +7,12 @@
 [![GitHub issues](https://img.shields.io/github/issues/Android1500/GpsSetter)](https://github.com/Android1500/GpsSetter/issues)
 
 
-### ⚠️ Copyright Notice
-
-What we hate most about is the modification of our texts, code which absolutely means they want others to think all the work is done by THEM instead of others, though they actually helped NOTHING with the module development.
-
-We also hate someone use our effort and do their modification and sell them without our permission which is wrong.
-
-
-Although our project was open source before, we didn't set up a license, so **ALL COPYRIGHTS RESERVED**. And from now on we decline ANY modification or pre-patched apk.  but you should not release your patched apk anywhere or sell.
-
-
-![](https://github.com/Xposed-Modules-Repo/com.android1500.gpssetter/blob/main/banner.png) 
+LICENSE
 
 ### Support/Discussion: [XDA thread](https://forum.xda-developers.com/t/app-xposed-8-1-12x-gps-setter-set-device-location.4454879/)
 
 
 As most of GPS spoof app not working anymore coz some are old and some are not proper implement with current OS so i made myself a GPS setter which called GPS Setter it will help you set location where you want from malicious app coz some bad apps collect user location for advertisement purpose or other purpose.... who knows?? so in such case this app will work like charm for prevent current location## . Its still in beta stage coz its still have some bugs which will be fixed in upcoming updates.
-
-
-
 
 ## Disclaimer:
 
