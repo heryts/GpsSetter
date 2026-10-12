@@ -1,0 +1,95 @@
+name: Build Zygisk module
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_app:
+        description: "Build ulang app GPS Setter (false = pakai APK yang sudah ada di module/.../assets/apk)"
+        type: boolean
+        default: false
+  push:
+    branches: [zygisk]
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 17 dan 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-33 platforms;android-37.0 build-tools;33.0.0"
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle', '**/*.gradle.kts', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: local.properties (SDK + Maps key)
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > app/local.properties
+          echo "sdk.dir=$ANDROID_HOME" > module/local.properties
+          echo "MAPS_API_KEY=${MAPS_API_KEY:-dummy}" >> app/local.properties
+
+      - name: Build app (opsional)
+        if: ${{ inputs.build_app }}
+        run: |
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          cd app
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          cd ..
+          APK=$(ls app/app/build/outputs/apk/release/*.apk | head -1)
+          cp "$APK" module/zygote/src/main/assets/apk/GpsSetter.apk
+
+      - name: Build modul Zygisk
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          cd module
+          sed -i 's/compileSdk = 36/compileSdk = 37/' zygote/build.gradle.kts
+          grep -q suppressUnsupportedCompileSdk gradle.properties || echo "android.suppressUnsupportedCompileSdk=37" >> gradle.properties
+          echo "org.gradle.java.home=$JAVA_HOME_21_X64" >> gradle.properties
+          sh setup.sh
+          chmod +x gradlew
+          ./gradlew :zygote:assembleRelease --no-daemon
+
+      - name: Kumpulkan zip
+        id: zip
+        run: |
+          ZIP=$(find module/zygote/build/outputs -name '*.zip' | head -1)
+          test -n "$ZIP"
+          VER=$(grep -m1 versionName module/zygote/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
+          cp "$ZIP" "GpsSetterZygisk-v$VER.zip"
+          echo "file=GpsSetterZygisk-v$VER.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GpsSetterZygisk
+          path: ${{ steps.zip.outputs.file }}
+
+      - name: Buat Release (hanya saat tag v*)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.zip.outputs.file }}
