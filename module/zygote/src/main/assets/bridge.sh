@@ -1,10 +1,11 @@
 #!/system/bin/sh
-# GPS Setter (Zygisk) bridge  v0.1.2 (pref dicari multi-lokasi)
+# GPS Setter (Zygisk) bridge  v0.1.5 (setstart: Start/Stop modul = Start/Stop app)
 #   ensure  : pastikan daemon sinkronisasi hidup (dipanggil service.sh & WebUI)
 #   daemon  : (internal) pasang app bila belum ada, lalu salin titik dari app -> settings global gpsz_cfg
 #   install : pasang app GPS Setter dari apk/GpsSetter.apk
 #   sync    : sinkron sekali (hanya jika pengaturan di app BERUBAH sejak sinkron terakhir)
 #   force   : sinkron paksa (timpa gpsz_cfg dengan isi app sekarang)
+#   setstart 0|1 : ubah status Start/Stop DI APP (pref 'start'); app di-force-stop agar UI-nya memuat ulang
 #   status  : cetak diagnosa (daemon/app/pref/gpsz_cfg)
 MODDIR=$(cd "$(dirname "$0")" && pwd)
 APP=com.android1500.gpssetter
@@ -93,6 +94,35 @@ sync_cfg() {
   return 0
 }
 
+# Samakan tombol Start/Stop di app GPS Setter dengan status modul.
+# App membaca pref 'start' hanya saat dibuka dan menyimpannya dari memori, jadi app dimatikan dulu
+# (kalau tidak, ia menimpa perubahan ini dengan nilai lamanya), lalu file diubah DI TEMPAT (cat >) agar
+# pemilik/label SELinux file tetap milik app. LASTF diperbarui supaya daemon tidak menganggapnya
+# sebagai perubahan dari app dan menimpa gpsz_cfg (mis. titik manual dari 'gpsz.sh set').
+set_app_start() {
+  V=false; [ "$1" = 1 ] && V=true
+  PREF=$(find_pref)
+  if [ -z "$PREF" ] || [ ! -f "$PREF" ]; then log "setstart: pref app tidak ditemukan"; return 1; fi
+  CURV=$(pval boolean start)
+  [ "$CURV" = "$V" ] && return 0
+  am force-stop "$APP" >/dev/null 2>&1
+  TMP="$MODDIR/.pref.tmp"
+  if grep -q '<boolean name="start"' "$PREF"; then
+    sed "s|<boolean name=\"start\" value=\"[^\"]*\"|<boolean name=\"start\" value=\"$V\"|" "$PREF" > "$TMP"
+  else
+    sed "s|</map>|    <boolean name=\"start\" value=\"$V\" />\
+</map>|" "$PREF" > "$TMP"
+  fi
+  if [ -s "$TMP" ] && grep -q "name=\"start\" value=\"$V\"" "$TMP"; then
+    cat "$TMP" > "$PREF" && log "setstart: start=$V" || log "setstart: gagal menulis $PREF"
+  else
+    log "setstart: gagal menyusun pref"
+  fi
+  rm -f "$TMP"
+  NEW=$(derive) && echo "$NEW" > "$LASTF"
+  return 0
+}
+
 daemon_running() {
   [ -f "$PIDF" ] || return 1
   P=$(cat "$PIDF" 2>/dev/null)
@@ -116,6 +146,7 @@ case "$1" in
   install) install_app; exit $? ;;
   sync)    sync_cfg; exit 0 ;;
   force)   sync_cfg force; exit $? ;;
+  setstart) set_app_start "$2"; exit $? ;;
   ensure)  if start_daemon; then echo "daemon=running"; else echo "daemon=stopped"; exit 1; fi; exit 0 ;;
   status)
     daemon_running && echo "daemon=running" || echo "daemon=stopped"
@@ -128,7 +159,7 @@ case "$1" in
     echo "cfg=$(settings get global $KEY 2>/dev/null)"
     exit 0 ;;
   daemon) ;;
-  *) echo "usage: bridge.sh ensure|sync|force|status|install"; exit 1 ;;
+  *) echo "usage: bridge.sh ensure|sync|force|setstart 0|1|status|install"; exit 1 ;;
 esac
 
 # ---- daemon ----

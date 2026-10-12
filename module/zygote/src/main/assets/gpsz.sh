@@ -1,6 +1,6 @@
 #!/system/bin/sh
 # Run as root:  su -c "sh /data/adb/modules/gpssetter_zygisk/gpsz.sh <cmd>"
-#   on | off | toggle | set <lat> <lng> [acc] | random 0|1 | show
+#   on | off | toggle   (juga mengubah tombol Start/Stop di app GPS Setter) | set <lat> <lng> [acc] | random 0|1 | show
 #   pkg add <package> | pkg rm <package> | pkg list | pkg all on|off
 #   system on|off|status   (hook system_server/LocationManagerService; wajib REBOOT; UJI COBA)
 #   sync | status | check <package>   (diagnosa)
@@ -21,9 +21,9 @@ isnum() { case "$1" in ''|*[!0-9.-]*) return 1 ;; *) return 0 ;; esac; }
 validpkg() { case "$1" in ''|.*|*[!A-Za-z0-9._]*) return 1 ;; *) return 0 ;; esac; }
 
 case "$1" in
-  on)     E=1; save ;;
-  off)    E=0; save ;;
-  toggle) [ "$E" = 1 ] && E=0 || E=1; save ;;
+  on)     E=1; save; sh "$MODDIR/bridge.sh" setstart 1 >/dev/null 2>&1 ;;
+  off)    E=0; save; sh "$MODDIR/bridge.sh" setstart 0 >/dev/null 2>&1 ;;
+  toggle) [ "$E" = 1 ] && E=0 || E=1; save; sh "$MODDIR/bridge.sh" setstart $E >/dev/null 2>&1 ;;
   set)
     isnum "$2" && isnum "$3" || { echo "usage: set <lat> <lng> [acc]"; exit 1; }
     LAT=$2; LNG=$3
